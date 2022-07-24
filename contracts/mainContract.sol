@@ -33,14 +33,16 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         uint256 sessionId;
         uint256 score;
         uint256 currentBet;
+        uint256 nbTry;
+        uint256 withdrawValue;
         string[] letterGuessed;
     }
 
     struct Session {
         uint256 bet;
         uint256 sessionId;
-        address players1;
-        address players2;
+        address player1;
+        address player2;
         uint256 playerTurn;
         string word;
         bool isComplete;
@@ -55,6 +57,10 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
     event sessionCreated(uint256 _sessionIndex);
 
     event sessionJoined(uint256 _sessionIndex);
+
+    event sessionStarted(uint256 _sessionIndex);
+
+    event play(bool founLetter);
 
     event sessionEnded(uint256 bet, address winner);
 
@@ -74,12 +80,13 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         require(sucess, "not enougth founds");
         sessionIndex++;
         session[sessionIndex].bet = _bet;
-        session[sessionIndex].word = "RandomWord";
+        session[sessionIndex].word = "az";
         session[sessionIndex].sessionId = sessionIndex;
-        session[sessionIndex].players1 = msg.sender;
+        session[sessionIndex].player1 = msg.sender;
         session[sessionIndex].ended = false;
         userInfo[msg.sender].isPlaying = true;
         userInfo[msg.sender].sessionId = sessionIndex;
+        userInfo[msg.sender].nbTry = 0;
         emit sessionCreated(sessionIndex);
     }
 
@@ -90,8 +97,10 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         (bool sucess, ) = msg.sender.call{value: session[_sessionId].bet}("");
         require(sucess, "Not enougth funds sended");
         userInfo[msg.sender].sessionId = _sessionId;
-        session[sessionIndex].players2 = msg.sender;
+        session[sessionIndex].player2 = msg.sender;
         session[sessionIndex].isComplete = true;
+        userInfo[msg.sender].nbTry = 0;
+        emit sessionJoined(_sessionId);
     }
 
     function abortSession(uint256 _sessionId) public {
@@ -108,14 +117,16 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
     function startSession() public {
         uint256 index = userInfo[msg.sender].sessionId;
         require(
-            session[index].players1 == msg.sender,
+            session[index].player1 == msg.sender,
             "You are not the owner of a session"
         );
+        require(session[index].isComplete, "Session is not complete");
         session[index].started = true;
-        userInfo[session[index].players1].isPlayerTurn = true;
-        userInfo[session[index].players2].isPlayerTurn = false;
-        userInfo[session[index].players2].isPlaying = true;
+        userInfo[session[index].player1].isPlayerTurn = true;
+        userInfo[session[index].player2].isPlayerTurn = false;
+        userInfo[session[index].player2].isPlaying = true;
         session[index].playerTurn = 0;
+        emit sessionStarted(index);
     }
 
     function guessWord(string memory _letter) public returns (bool) {
@@ -130,19 +141,22 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
             "You have already used this letter"
         );
         require(userInfo[msg.sender].isPlayerTurn, "it's not your turn");
+
         bool winRound = false;
 
         userInfo[msg.sender].isPlayerTurn = false;
 
         userInfo[msg.sender].letterGuessed.push(_letter);
 
+        userInfo[msg.sender].nbTry++;
+
         if (session[index].playerTurn == 0) {
-            userInfo[session[index].players1].isPlayerTurn = false;
-            userInfo[session[index].players2].isPlayerTurn = true;
+            userInfo[session[index].player1].isPlayerTurn = false;
+            userInfo[session[index].player2].isPlayerTurn = true;
             session[index].playerTurn = 1;
         } else if (session[index].playerTurn == 1) {
-            userInfo[session[index].players1].isPlayerTurn = true;
-            userInfo[session[index].players2].isPlayerTurn = false;
+            userInfo[session[index].player1].isPlayerTurn = true;
+            userInfo[session[index].player2].isPlayerTurn = false;
             session[index].playerTurn = 0;
         }
 
@@ -153,10 +167,28 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
             );
             winRound = true;
         }
-        if (userInfo[msg.sender].score == bytes(session[index].word).length)
+        if (userInfo[msg.sender].score == bytes(session[index].word).length) {
             endSession(index, msg.sender);
+            emit sessionEnded(session[index].bet, msg.sender);
+        }
 
+        emit play(winRound);
         return winRound;
+    }
+
+    function endSession(uint256 _sessionId, address winner) internal {
+        session[_sessionId].ended = true;
+        resetUserInfos(session[_sessionId].player1);
+        resetUserInfos(session[_sessionId].player2);
+        userInfo[winner].withdrawValue += session[_sessionId].bet;
+    }
+
+    function withdraw() public {
+        require(
+            userInfo[msg.sender].withdrawValue > 0,
+            "You have nothing to withdraw"
+        );
+        payable(msg.sender).transfer(userInfo[msg.sender].withdrawValue);
     }
 
     function haveUsedThisLetter(address _user, string memory _letter)
@@ -183,18 +215,13 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         return isLetter;
     }
 
-    function endSession(uint256 _sessionId, address winner) internal {
-        session[_sessionId].ended = true;
-        resetUserInfos(session[_sessionId].players1);
-        resetUserInfos(session[_sessionId].players2);
-        payable(winner).transfer(session[_sessionId].bet);
-    }
-
     function resetUserInfos(address user) internal {
         userInfo[user].isPlaying = false;
         userInfo[user].isPlayerTurn = false;
         userInfo[user].sessionId = 0;
         userInfo[user].score = 0;
+        userInfo[user].nbTry = 0;
+
         delete userInfo[user].letterGuessed;
     }
 
