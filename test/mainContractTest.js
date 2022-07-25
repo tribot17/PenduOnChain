@@ -14,7 +14,7 @@ contract("mainContract", (accounts) => {
   const player1 = accounts[1];
   const player2 = accounts[2];
 
-  let testCounter = 0; // variable qui permet de numéroter nos tests
+  let testCounter = 1; // variable qui permet de numéroter nos tests
 
   beforeEach(async function () {
     this.mainConctractInstance = await mainConctract.new(5, { from: owner });
@@ -31,6 +31,7 @@ contract("mainContract", (accounts) => {
     Une fois tous les mots trouvés toutes les infos sont sensé se reset
     Withdraw function
   */
+
   context("------- Test creation session -------", () => {
     beforeEach(async function () {
       await this.mainConctractInstance.createSession("1", {
@@ -69,6 +70,10 @@ contract("mainContract", (accounts) => {
     it(`${testCounter++} : La partie ne devrait pas être terminé`, async function () {
       await expect(this.session.ended).to.be.equal(false);
     });
+
+    it(`${testCounter++} : La partie ne devrait pas être terminé`, async function () {
+      await expect(this.session.ended).to.be.equal(false);
+    });
   });
 
   context("------- Test rejoindre une session -------", () => {
@@ -77,18 +82,23 @@ contract("mainContract", (accounts) => {
         from: player1,
         value: "1",
       });
-      this.session = await this.mainConctractInstance.session(1);
-    });
-
-    it(`${testCounter++} : Le joueur 2 devrait rejoindre la session 1`, async function () {
-      const balanceBefore = player2.balance();
       await this.mainConctractInstance.joinSession("1", {
         from: player2,
         value: "1",
       });
-      const balanceAfter = player2.balance();
-      await expect(balanceAfter).to.be.bignumber.equal(balanceBefore - 1);
+      this.session = await this.mainConctractInstance.session(1);
+    });
+
+    it(`${testCounter++} : Le joueur 2 devrait rejoindre la session 1`, async function () {
       await expect(this.session.player2).to.bignumber.be.equal(player2);
+    });
+
+    it(`${testCounter++} : La session 1 devrait être complète`, async function () {
+      await expect(this.session.isComplete).to.be.equal(true);
+    });
+
+    it(`${testCounter++} : La session 1 ne devrait pas être finie`, async function () {
+      await expect(this.session.ended).to.be.equal(false);
     });
   });
 });
