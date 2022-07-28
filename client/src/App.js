@@ -19,7 +19,9 @@ function App() {
   const [playerTurn, setPlayerTurn] = useState(false);
   const [wordUsed, setWordUsed] = useState([]);
   const [sessionEnded, setSessionEnded] = useState(false);
+  const [arrayWord, setArrayWord] = useState([]);
   const [winner, setWinner] = useState();
+  let setted = false;
 
   useEffect(() => {
     loadData();
@@ -55,14 +57,24 @@ function App() {
         setPlaying(true);
         setGameStarted(true);
         setWord(sessionInfos.word);
+        getWord(sessionInfos.word);
         setScore(userInfo.score);
         setPlayerTurn(userInfo.isPlayerTurn);
-        setWordUsed([localStorage.getItem("Words")]);
+        if (localStorage.getItem("Words"))
+          setWordUsed([localStorage.getItem("Words").split(",")][0]);
       }
       setSessionId(sessionInfos.sessionId);
       if (sessionInfos.player1 === accounts[0]) setIsCreator(true);
     }
     console.log(userInfo);
+  };
+
+  const getWord = (word) => {
+    if (!setted)
+      for (let i = 0; i < word.length; i++) {
+        arrayWord.push(word[i]);
+      }
+    setted = true;
   };
 
   const fetchUserData = async () => {
@@ -74,7 +86,7 @@ function App() {
 
   const fetchTurn = async () => {
     const interval = setInterval(async () => {
-      console.log(accounts);
+      console.log("fetching", accounts);
       const thisUserInfo = await contract.methods.userInfo(accounts).call();
       const sessionData = await contract.methods
         .session(thisUserInfo.sessionId)
@@ -85,6 +97,8 @@ function App() {
         localStorage.removeItem("Words");
         setTimeout(() => {
           setPlaying(false);
+          setGameStarted(false);
+          setSessionEnded(false);
         }, 5000);
       }
     }, 5000);
@@ -105,22 +119,28 @@ function App() {
       await contract.methods
         .createSession(bet)
         .send({ from: accounts, value: bet })
-        .then((res) => {
+        .then(async (res) => {
           setSessionId(res.events.sessionCreated.returnValues._sessionIndex);
           setGameStarted(true);
           setIsCreator(true);
+          console.log(await web3.eth.getBalance(contract._address));
         });
   };
 
   const handleJoinSession = async (sessionIndex) => {
     let sessionInfo = await contract.methods.session(sessionIndex).call();
+    console.log(sessionInfo);
     if (sessionIndex !== undefined)
       await contract.methods
         .joinSession(sessionIndex)
-        .send({ from: accounts, value: sessionInfo.bet })
+        .send({
+          from: accounts,
+          value: sessionInfo.bet,
+        })
         .then((res) => {
           setSessionId(res.events.sessionJoined.returnValues._sessionIndex);
           setGameStarted(true);
+          localStorage.removeItem("Words");
         });
   };
 
@@ -137,17 +157,19 @@ function App() {
           setPlayerTurn(true);
           setSessionError(false);
           setWord(sessionData.word);
+          getWord(sessionData.word);
+          localStorage.removeItem("Words");
         });
     else setSessionError(true);
   };
 
   const handleGetReady = async () => {
     let sessionData = await contract.methods.session(sessionId).call();
-    console.log(sessionData);
     if (sessionData.started) {
       setPlaying(true);
       setSessionError(false);
       setWord(sessionData.word);
+      getWord(sessionData.word);
     } else setSessionError(true);
   };
 
@@ -168,15 +190,22 @@ function App() {
             temp.push(letter);
             localStorage.setItem("Words", temp);
             console.log(res);
+            console.log(
+              res.events.sessionEnded &&
+                res.events.sessionEnded.returnValues.winner,
+              accounts
+            );
             if (
               res.events.sessionEnded &&
-              res.events.sessionEnded.returnValueswinner == accounts
+              res.events.sessionEnded.returnValues.winner == accounts
             ) {
               setWinner(true);
               setSessionEnded(true);
               localStorage.removeItem("Words");
               setTimeout(() => {
+                setGameStarted(false);
                 setPlaying(false);
+                setSessionEnded(false);
               }, 5000);
             }
           });
@@ -193,16 +222,20 @@ function App() {
 
   return (
     <div>
-      <h1>Jeu du pendu</h1>
+      <h1 style={{ textAlign: "center" }}>Jeu du pendu</h1>
       {!gameStarted ? (
-        <>
+        <div className="sessionJoin_Create">
           <div className="createSession">
             <h3>Créer une session</h3>
             <label htmlFor="bet">
               Valeur de parie
               <input type="number" name="bet" onChange={handleInputChange} />
             </label>
-            <button onClick={() => handleCreateSession(inputValue.bet)}>
+            <button
+              onClick={() =>
+                handleCreateSession(web3.utils.toWei(inputValue.bet, "ether"))
+              }
+            >
               Créer la session
             </button>
           </div>
@@ -220,7 +253,7 @@ function App() {
               Rejoindre la session
             </button>
           </div>
-        </>
+        </div>
       ) : (
         !playing && (
           <>
@@ -249,9 +282,11 @@ function App() {
         <>
           <p>Session ID : {sessionId && sessionId}</p>
           <p>Votre score : {score}</p>
-          <p>Mots trouvés : </p>
-          {wordUsed &&
-            wordUsed.map((n, i) => <p key={i}>{checkLetter(n) ? n : null}</p>)}
+          <p>Mots : </p>
+          {arrayWord &&
+            arrayWord.map((n) =>
+              wordUsed.includes(n) ? <p>{n}</p> : <p>_</p>
+            )}
           <p>{!playerTurn ? "Ce n'est pas votre tour" : "C'est votre tour"}</p>
           <div className="gameContainer">
             <label htmlFor="letter">
@@ -263,10 +298,11 @@ function App() {
             <br />
             {playerError && "Ce n'est pas vôtre tour, réassayer plus tard"}
           </div>
-          <button>Abandonner</button>
+          <button onClick={fetchTurn()}>Rafraichir</button>
+          {/* <button>Abandonner</button> */}
         </>
       )}
-      {sessionEnded && (
+      {gameStarted && sessionEnded && (
         <>
           <h1>La session est terminé</h1>
           {winner ? <p>Vous avez gagné</p> : <p>Vous avez perdu</p>}

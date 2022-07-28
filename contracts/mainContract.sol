@@ -27,6 +27,10 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
 
     uint256 sessionIndex = 0;
 
+    uint256 WordToGuessIndex;
+
+    uint256[] public s_randomWords;
+
     struct UserInfos {
         bool isPlaying;
         bool isPlayerTurn;
@@ -74,13 +78,13 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
     }
 
     function createSession(uint256 _bet) public payable {
-        // string wordToGuess = requestRandomWords();
-        (bool sucess, ) = msg.sender.call{value: _bet}("");
         require(!userInfo[msg.sender].isPlaying, "You are already playing");
+        (bool sucess, ) = address(this).call{value: _bet}("");
         require(sucess, "not enougth founds");
+        requestRandomWords();
         sessionIndex++;
         session[sessionIndex].bet = _bet;
-        session[sessionIndex].word = "az";
+        session[sessionIndex].word = wordList[WordToGuessIndex];;
         session[sessionIndex].sessionId = sessionIndex;
         session[sessionIndex].player1 = msg.sender;
         session[sessionIndex].ended = false;
@@ -94,24 +98,16 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         require(session[_sessionId].bet > 0, "Session error");
         require(!userInfo[msg.sender].isPlaying, "You are already playing");
         require(!session[_sessionId].ended, "Session is ended");
-        (bool sucess, ) = msg.sender.call{value: session[_sessionId].bet}("");
+        (bool sucess, ) = address(this).call{value: session[_sessionId].bet}(
+            ""
+        );
         require(sucess, "Not enougth funds sended");
         userInfo[msg.sender].sessionId = _sessionId;
-        session[sessionIndex].player2 = msg.sender;
-        session[sessionIndex].isComplete = true;
+        userInfo[msg.sender].isPlaying = true;
         userInfo[msg.sender].nbTry = 0;
+        session[sessionIndex].isComplete = true;
+        session[sessionIndex].player2 = msg.sender;
         emit sessionJoined(_sessionId);
-    }
-
-    function abortSession(uint256 _sessionId) public {
-        require(
-            userInfo[msg.sender].sessionId == _sessionId,
-            "It's not your session"
-        );
-        require(
-            !session[_sessionId].started,
-            "Your session have already started"
-        );
     }
 
     function startSession() public {
@@ -124,7 +120,6 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         session[index].started = true;
         userInfo[session[index].player1].isPlayerTurn = true;
         userInfo[session[index].player2].isPlayerTurn = false;
-        userInfo[session[index].player2].isPlaying = true;
         session[index].playerTurn = 0;
         emit sessionStarted(index);
     }
@@ -140,7 +135,6 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
             !haveUsedThisLetter(msg.sender, _letter),
             "You have already used this letter"
         );
-        require(userInfo[msg.sender].isPlayerTurn, "it's not your turn");
 
         bool winRound = false;
 
@@ -180,7 +174,7 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         session[_sessionId].ended = true;
         resetUserInfos(session[_sessionId].player1);
         resetUserInfos(session[_sessionId].player2);
-        userInfo[winner].withdrawValue += session[_sessionId].bet;
+        userInfo[winner].withdrawValue += session[_sessionId].bet * 2;
     }
 
     function withdraw() public {
@@ -188,7 +182,9 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
             userInfo[msg.sender].withdrawValue > 0,
             "You have nothing to withdraw"
         );
-        payable(msg.sender).transfer(userInfo[msg.sender].withdrawValue);
+        uint256 toSend = userInfo[msg.sender].withdrawValue;
+        userInfo[msg.sender].withdrawValue = 0;
+        payable(msg.sender).transfer(toSend);
     }
 
     function haveUsedThisLetter(address _user, string memory _letter)
@@ -225,7 +221,7 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         delete userInfo[user].letterGuessed;
     }
 
-    function requestRandomWords() external onlyOwner {
+    function requestRandomWords() internal {
         s_requestId = COORDINATOR.requestRandomWords(
             keyHash,
             s_subscriptionId,
@@ -239,10 +235,16 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         uint256, /* requestId */
         uint256[] memory randomWords
     ) internal override {
-        // s_randomWords = randomWords;
+        WordToGuessIndex = (randomWords[0] % wordList.length) + 1;
     }
 
-    function getWorkList() public view returns (string[] memory) {
+    function getWordList() public view returns (string[] memory) {
         return wordList;
     }
+
+    function getSessionIndex() public view returns (uint256) {
+        return sessionIndex;
+    }
+
+    receive() external payable {}
 }

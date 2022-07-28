@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import getWeb3 from "../getWeb3";
 import mainContract from "../contracts/mainContract.json";
 
-const Withdraw = () => {
-  const [withdrawValue, setWithdrawValue] = useState();
+const Admin = () => {
   const [contract, setContract] = useState();
   const [accounts, setAccounts] = useState();
+  const [wordValue, setWordValue] = useState();
+  const [wordList, setWordList] = useState();
 
   useEffect(() => {
     loadData();
@@ -22,25 +23,28 @@ const Withdraw = () => {
     );
 
     const userInfo = await contract.methods.userInfo(accounts[0]).call();
+    const wordList = await contract.methods.getWordList().call();
+    console.log(contract.methods);
 
-    console.log(await web3.eth.getBalance(contract._address));
-    setWithdrawValue(web3.utils.fromWei(userInfo.withdrawValue, "ether"));
+    setWordList(wordList);
     setContract(contract);
     setAccounts(accounts[0]);
   };
 
-  const handleWithdraw = async () => {
-    await contract.methods.withdraw().send({ from: accounts });
+  const handleSendWord = async () => {
+    await contract.methods.addWord(wordValue).send({ from: accounts });
+    setWordList(await contract.methods.getWordList().call());
   };
-
   return (
     <div>
-      <h1>Withdraw</h1>
-
-      <p>Vous pouvez retirer : {withdrawValue} ETH</p>
-      <button onClick={handleWithdraw}>Retirer</button>
+      <h1>Admin</h1>
+      <p>Ajouter un mot</p>
+      <input onChange={(e) => setWordValue(e.target.value)} />
+      <button onClick={handleSendWord}>Valider</button>
+      <h3>WordList : </h3>
+      <ul>{wordList && wordList.map((n) => <li>{n}</li>)}</ul>
     </div>
   );
 };
 
-export default Withdraw;
+export default Admin;

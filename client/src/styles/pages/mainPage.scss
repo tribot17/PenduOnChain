@@ -1,0 +1,13 @@
+.sessionJoin_Create{
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    width: 50%;
+    border: 1px solid black;
+    border-radius: 25px;
+    height: 500px;
+    margin: auto;
+    .createSession, .joinSession{
+        margin: auto;
+    }
+}
