@@ -84,7 +84,7 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         requestRandomWords();
         sessionIndex++;
         session[sessionIndex].bet = _bet;
-        session[sessionIndex].word = wordList[WordToGuessIndex];;
+        session[sessionIndex].word = wordList[WordToGuessIndex];
         session[sessionIndex].sessionId = sessionIndex;
         session[sessionIndex].player1 = msg.sender;
         session[sessionIndex].ended = false;
