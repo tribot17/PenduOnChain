@@ -5,6 +5,9 @@ import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+/// @title Pendu on Chain
+/// @author Tribot17
+/// @notice Test contract, do not use in production
 contract mainContract is VRFConsumerBaseV2, Ownable {
     VRFCoordinatorV2Interface COORDINATOR;
 
@@ -12,8 +15,6 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
 
     bytes32 keyHash =
         0xd89b2bf150e3b9e13446986e571fb9cab24b13cea0a43ea20a6049a85cc807cc;
-
-    IERC20 LINK = IERC20(0x01BE23585060835E02B77ef475b0Cc51aA1e0709);
 
     uint32 callbackGasLimit = 100000;
 
@@ -59,24 +60,26 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
     mapping(uint256 => Session) public session;
 
     event sessionCreated(uint256 _sessionIndex);
-
     event sessionJoined(uint256 _sessionIndex);
-
     event sessionStarted(uint256 _sessionIndex);
-
     event play(bool founLetter);
-
     event sessionEnded(uint256 bet, address winner);
 
+    /// @notice Enter the subscriptionId to ask randomValue to ChainLink
+    /// @param subscriptionId the id which is given by ChainLink
     constructor(uint64 subscriptionId) VRFConsumerBaseV2(vrfCoordinator) {
         COORDINATOR = VRFCoordinatorV2Interface(vrfCoordinator);
         s_subscriptionId = subscriptionId;
     }
 
+    /// @notice add a word to the wordList
+    /// @param _word the word which is going to be added
     function addWord(string memory _word) public onlyOwner {
         wordList.push(_word);
     }
 
+    /// @notice create a game session
+    /// @param _bet the bet of the session
     function createSession(uint256 _bet) public payable {
         require(!userInfo[msg.sender].isPlaying, "You are already playing");
         (bool sucess, ) = address(this).call{value: _bet}("");
@@ -94,6 +97,8 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         emit sessionCreated(sessionIndex);
     }
 
+    /// @notice join a game session
+    /// @param _sessionId the session that we want to join
     function joinSession(uint256 _sessionId) public payable {
         require(session[_sessionId].bet > 0, "Session error");
         require(!userInfo[msg.sender].isPlaying, "You are already playing");
@@ -110,6 +115,7 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         emit sessionJoined(_sessionId);
     }
 
+    /// @notice start a game session
     function startSession() public {
         uint256 index = userInfo[msg.sender].sessionId;
         require(
@@ -124,6 +130,8 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         emit sessionStarted(index);
     }
 
+    /// @notice will verify if the letter is in the word if it is the case it will increase the score of the user
+    /// @param _letter the letter the user had given
     function guessWord(string memory _letter) public returns (bool) {
         uint256 index = userInfo[msg.sender].sessionId;
 
@@ -170,6 +178,9 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         return winRound;
     }
 
+    /// @notice end a game session and reset all the infos
+    /// @param _session the sessionId which be ended
+    /// @param winner the winner of the session
     function endSession(uint256 _sessionId, address winner) internal {
         session[_sessionId].ended = true;
         resetUserInfos(session[_sessionId].player1);
@@ -177,6 +188,7 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         userInfo[winner].withdrawValue += session[_sessionId].bet * 2;
     }
 
+    /// @notice withdraw funds and give it to the winner
     function withdraw() public {
         require(
             userInfo[msg.sender].withdrawValue > 0,
@@ -187,6 +199,9 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         payable(msg.sender).transfer(toSend);
     }
 
+    /// @notice verify if the user has already used this letter
+    /// @param _user the user who has given the letter
+    /// @param _letter the letter that we want to check
     function haveUsedThisLetter(address _user, string memory _letter)
         internal
         view
@@ -199,6 +214,9 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         return false;
     }
 
+    /// @notice check if the letter is in the word
+    /// @param _letter the letter that we want to check
+    /// @param _word the word that we want to check
     function letterIsInWord(string memory _word, string memory _letter)
         internal
         pure
@@ -211,16 +229,19 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         return isLetter;
     }
 
-    function resetUserInfos(address user) internal {
-        userInfo[user].isPlaying = false;
-        userInfo[user].isPlayerTurn = false;
-        userInfo[user].sessionId = 0;
-        userInfo[user].score = 0;
-        userInfo[user].nbTry = 0;
+    /// @notice reset all userInfos after a game
+    /// @param _user the user who will be reseted
+    function resetUserInfos(address _user) internal {
+        userInfo[_user].isPlaying = false;
+        userInfo[_user].isPlayerTurn = false;
+        userInfo[_user].sessionId = 0;
+        userInfo[_user].score = 0;
+        userInfo[_user].nbTry = 0;
 
-        delete userInfo[user].letterGuessed;
+        delete userInfo[_user].letterGuessed;
     }
 
+    /// @notice ask to ChainLink a random value
     function requestRandomWords() internal {
         s_requestId = COORDINATOR.requestRandomWords(
             keyHash,
@@ -231,6 +252,8 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         );
     }
 
+    /// @notice give a random value between 0 and the length of wordList
+    /// @param randomWords the array of random word given by chainlink
     function fulfillRandomWords(
         uint256, /* requestId */
         uint256[] memory randomWords
@@ -238,10 +261,12 @@ contract mainContract is VRFConsumerBaseV2, Ownable {
         WordToGuessIndex = (randomWords[0] % wordList.length) + 1;
     }
 
+    /// @notice return the wordList
     function getWordList() public view returns (string[] memory) {
         return wordList;
     }
 
+    /// @notice return the sessionIndex
     function getSessionIndex() public view returns (uint256) {
         return sessionIndex;
     }

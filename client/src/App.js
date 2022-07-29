@@ -33,6 +33,7 @@ function App() {
     }
   }, [score]);
 
+  //Get onChain Data
   const loadData = async () => {
     const web3 = await getWeb3();
     const accounts = await web3.eth.getAccounts();
@@ -66,7 +67,6 @@ function App() {
       setSessionId(sessionInfos.sessionId);
       if (sessionInfos.player1 === accounts[0]) setIsCreator(true);
     }
-    console.log(userInfo);
   };
 
   const getWord = (word) => {
@@ -84,6 +84,7 @@ function App() {
     return userInfo;
   };
 
+  //Check all 5s if is the user turn if the game has started
   const fetchTurn = async () => {
     const interval = setInterval(async () => {
       console.log("fetching", accounts);
@@ -123,7 +124,6 @@ function App() {
           setSessionId(res.events.sessionCreated.returnValues._sessionIndex);
           setGameStarted(true);
           setIsCreator(true);
-          console.log(await web3.eth.getBalance(contract._address));
         });
   };
 
@@ -188,13 +188,8 @@ function App() {
             fetchTurn();
             setWordUsed([...wordUsed, letter]);
             temp.push(letter);
+            //Store the word in the local storage to keep it if the user refresh the page
             localStorage.setItem("Words", temp);
-            console.log(res);
-            console.log(
-              res.events.sessionEnded &&
-                res.events.sessionEnded.returnValues.winner,
-              accounts
-            );
             if (
               res.events.sessionEnded &&
               res.events.sessionEnded.returnValues.winner == accounts
@@ -299,7 +294,6 @@ function App() {
             {playerError && "Ce n'est pas vôtre tour, réassayer plus tard"}
           </div>
           <button onClick={fetchTurn()}>Rafraichir</button>
-          {/* <button>Abandonner</button> */}
         </>
       )}
       {gameStarted && sessionEnded && (

@@ -13,24 +13,13 @@ contract("mainContract", (accounts) => {
   const owner = accounts[0];
   const player1 = accounts[1];
   const player2 = accounts[2];
+  const player3 = accounts[3];
 
   let testCounter = 1; // variable qui permet de numéroter nos tests
 
   beforeEach(async function () {
-    this.mainConctractInstance = await mainConctract.new(5, { from: owner });
+    this.mainConctractInstance = await mainConctract.new(9215, { from: owner });
   });
-
-  /*Test : 
-    Ajouter un mot
-    Lancer la session
-    Tirer les mots au hasard
-    Deviner une bonne lettre
-    Deviner une mauvaise lettre
-    Le score doit augmenter
-    Si la lettre est plusieurs dans le mot
-    Une fois tous les mots trouvés toutes les infos sont sensé se reset
-    Withdraw function
-  */
 
   context("------- Test variable -------", () => {
     it(`${testCounter++} : WordList devrait être vide`, async function () {
@@ -126,6 +115,21 @@ contract("mainContract", (accounts) => {
       });
     });
 
+    it(`${testCounter++} : Le joueur 2 ne devrait pas pouvoir rejoindre une autre session`, async function () {
+      await this.mainConctractInstance.createSession(ether("1"), {
+        from: player3,
+        value: ether("1"),
+      });
+
+      await expectRevert(
+        this.mainConctractInstance.joinSession("2", {
+          from: player2,
+          value: ether("1"),
+        }),
+        "You are already playing"
+      );
+    });
+
     it(`${testCounter++} : La session 1 devrait être complète`, async function () {
       await expect(this.session.isComplete).to.be.equal(true);
     });
@@ -212,7 +216,7 @@ contract("mainContract", (accounts) => {
       );
     });
 
-    //Ces tests fonctionne uniquement avec un mot déjà défini en dur dans le code
+    //Ces tests fonctionne uniquement avec un mot déjà défini en dur dans le code et non avec un mot au hasard
     it(`${testCounter++} : Le joueur 1 devrait essayer le lettre s`, async function () {
       const receipt = await this.mainConctractInstance.guessWord("a", {
         from: player1,
@@ -265,6 +269,7 @@ contract("mainContract", (accounts) => {
     });
 
     it(`${testCounter++} : Le joueur 1 devrait gagner et les infos sont remis à zero ensuite et retire les fonds`, async function () {
+      //Creation de toute la phase de jeu
       await this.mainConctractInstance.guessWord("s", {
         from: player1,
       });
@@ -292,6 +297,7 @@ contract("mainContract", (accounts) => {
       const receipt = await this.mainConctractInstance.guessWord("t", {
         from: player1,
       });
+      //Vérification que les userInfo sont vides
       const userInfo1 = await this.mainConctractInstance.userInfo(player1);
       const userInfo2 = await this.mainConctractInstance.userInfo(player2);
 
@@ -305,7 +311,7 @@ contract("mainContract", (accounts) => {
       const tracker1 = await balance.tracker(player1);
       await this.mainConctractInstance.withdraw({ from: player1 });
       const profit1 = await tracker1.delta();
-      //2eth - les gas fee
+      //2Eth - les gas fee
       expect(profit1).to.be.bignumber.equal("1999586180000000000");
     });
   });

@@ -22,7 +22,6 @@ const Admin = () => {
       deployedNetwork && deployedNetwork.address
     );
 
-    const userInfo = await contract.methods.userInfo(accounts[0]).call();
     const wordList = await contract.methods.getWordList().call();
     console.log(contract.methods);
 
